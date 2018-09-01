@@ -1,0 +1,159 @@
+#!/usr/bin/env python
+
+"""
+The purpose of this script is to load all your active items on your Craigslist
+account and produce a quick static web-page listing.  I used to put a keyword
+in the Craigslist listings to allow for a search but somehow this is not
+working properly anymore.
+"""
+
+import requests
+from argparse import ArgumentParser
+from bs4 import BeautifulSoup
+from configparser import ConfigParser
+from jinja2 import Environment, FileSystemLoader
+
+
+BASE_URL = "https://accounts.craigslist.org/login"
+
+
+def get_form_data(form, email, password):
+    inputs = {}
+
+    for tag in form.find_all("input"):
+        name = tag.get("name")
+        if not name:
+            continue
+        value = tag.get("value")
+        inputs[name] = value
+
+    inputs.update({
+        "inputEmailHandle": email,
+        "inputPassword": password,
+    })
+
+    return inputs
+
+
+def login(session, email, password):
+    r = session.get(BASE_URL)
+    soup = BeautifulSoup(r.content, "html.parser")
+    form = soup.find_all("form", class_="loginform")[0]
+    data = get_form_data(form, email, password)
+    r = session.post(BASE_URL, data)
+    if b"incorrect" in r.content:
+        raise Exception("Login incorrect")
+
+
+def get_image_url(session, listing_url):
+    r = session.get(listing_url)
+    soup = BeautifulSoup(r.content, "html.parser")
+    return soup.select("div.slide.first img")[0]["src"]
+
+
+def get_active_listings(session):
+    listings = []
+
+    # Get active listings
+    r = session.post(BASE_URL + "/home", {
+        "filter_active": "active",
+        "filter_cat": "0",
+        "viewProfile": "",
+        "viewAccount": "",
+        "last_date": "",
+        "filter_date": "",
+        "terms": "",
+    })
+    soup = BeautifulSoup(r.content, "html.parser")
+    rows = soup.find_all("tr", class_="posting-row")
+    for row in rows:
+        title_tag = row.select(".title a")[0]
+        url = title_tag["href"]
+        title = title_tag.get_text(strip=True)
+        tokens = title.splitlines()
+        if len(tokens) == 2:
+            title = tokens[0]
+            price = tokens[1].strip(" -")
+        else:
+            price = "Free"
+
+        # Extract the area out of the element before obtaining the category.
+        area = row.select(".areacat b")[0].extract().get_text(strip=True)
+        category = row.select(".areacat")[0].get_text(strip=True)
+
+        listings.append({
+            "title": title,
+            "price": price,
+            "url": url,
+            "area": area,
+            "category": category,
+            "image_url": get_image_url(session, url),
+        })
+
+    return listings
+
+
+def get_configuration_path():
+    parser = ArgumentParser()
+    parser.add_argument("config_file", type=open)
+    args = parser.parse_args()
+    return args.config_file
+
+
+def parse_configuration_file(path):
+    parser = ConfigParser()
+    parser.read_file(path)
+
+    return {
+        "email": parser.get("craigslist", "email"),
+        "password": parser.get("craigslist", "password"),
+        "title": parser.get("template", "title"),
+        "ga_id": parser.get("template", "ga_id"),
+    }
+
+
+def load_configuration():
+    path = get_configuration_path()
+    return parse_configuration_file(path)
+
+
+def load_template():
+    env = Environment(loader=FileSystemLoader("template"))
+    return env.get_template("index.jinja")
+
+
+def get_http_session():
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.13; rv:61.0) "
+            "Gecko/20100101 Firefox/61.0"
+        ),
+        "Referer": BASE_URL,
+    })
+    return session
+
+
+def render(template, data):
+    with open("template/index.html", "wb") as fp:
+        fp.write(template.render(**data).encode("utf-8"))
+
+
+def main():
+    config = load_configuration()
+    template = load_template()
+    session = get_http_session()
+
+    login(session, config["email"], config["password"])
+
+    listings = get_active_listings(session)
+
+    render(template, {
+        "listings": listings,
+        "title": config["title"],
+        "ga_id": config["ga_id"],
+    })
+
+
+if __name__ == '__main__':
+    main()

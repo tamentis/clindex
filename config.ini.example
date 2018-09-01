@@ -1,0 +1,12 @@
+# Configuration example for clindex
+#
+# You need to at least change your Craigslist credentials.
+#
+
+[craigslist]
+email = seller@example.com
+password = your-password
+
+[template]
+title = Estate sale at 42 Foobar Lane
+ga_id = 
