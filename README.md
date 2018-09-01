@@ -2,6 +2,8 @@
 
 This small tool was built to generate a static site with all your active craigslist listings.  This was particularly useful for me as I was selling a large amount of items and would prefer buyers to pick up multiple things at once.
 
+![Output example](screenshot.png)
+
 ## How to use it
 Create a virtualenv, install the dependencies, create a configuration file and run it:
 ```
