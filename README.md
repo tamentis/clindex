@@ -2,8 +2,6 @@
 
 This small tool was built to generate a static site with all your active craigslist listings.  This was particularly useful for me as I was selling a large amount of items and would prefer buyers to pick up multiple things at once.
 
-![Output example](screenshot.png)
-
 ## How to use it
 Create a virtualenv, install the dependencies, create a configuration file and run it:
 ```
@@ -26,3 +24,6 @@ One of the many ways to host a static website is Amazon S3:
 $ pip install awscli
 $ aws s3 sync template s3://your-bucket --acl public-read
 ```
+
+## Example
+![Output example](screenshot.png)
